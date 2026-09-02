@@ -1,0 +1,8 @@
+import {desc,eq} from "drizzle-orm";
+import {getDb} from "../../../db";
+import {quotes} from "../../../db/schema";
+import {getChatGPTUser} from "../../chatgpt-auth";
+
+export async function GET(){const user=await getChatGPTUser();if(!user)return Response.json({error:"Sign in required"},{status:401});const rows=await getDb().select().from(quotes).orderBy(desc(quotes.createdAt));return Response.json({quotes:rows})}
+export async function POST(req:Request){try{const data=await req.json();if(!data.customerName||!/^[0-9]{10}$/.test(String(data.phone))||!data.projectType||String(data.description||"").trim().length<10)return Response.json({error:"Please complete your name, 10-digit phone number and project details."},{status:400});const quote={id:`Q${Date.now().toString().slice(-9)}`,createdAt:new Date().toISOString(),customerName:String(data.customerName),phone:String(data.phone),email:String(data.email||""),projectType:String(data.projectType),description:String(data.description),quantity:Math.max(1,Number(data.quantity)||1),status:"new",ownerNote:""};await getDb().insert(quotes).values(quote);return Response.json({quote})}catch(e){return Response.json({error:e instanceof Error?e.message:"Unable to submit quote"},{status:500})}}
+export async function PATCH(req:Request){const user=await getChatGPTUser();if(!user)return Response.json({error:"Sign in required"},{status:401});const data=await req.json();if(!data.id||!["new","reviewing","quoted","approved","closed"].includes(data.status))return Response.json({error:"Invalid quote update"},{status:400});await getDb().update(quotes).set({status:String(data.status),ownerNote:String(data.ownerNote||"")}).where(eq(quotes.id,String(data.id)));return Response.json({updated:true})}
