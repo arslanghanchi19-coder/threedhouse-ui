@@ -1,44 +1,59 @@
-# THREE D HOUSE — source export
+# THREE D HOUSE — Netlify + Supabase migration
+Updated September 2, 2026.
 
-Updated September 2, 2026. Source commit 4e567793532da5c147d4d31f8635daeea002b23e.
+This is a source migration of your uploaded GitHub ZIP. Nothing has been deployed,
+no DNS records changed, and no paid service activated.
 
-This source includes the new monochrome editorial storefront design, inspired by the House of Rare reference. It is not a completed Cloudflare migration or a standalone HTML site. The redesign has not been published to the live website.
+## What changed
+- Standard Next.js build for Netlify, with the existing storefront design preserved.
+- Supabase Auth email/password login, confirmation, reset and customer profile page.
+- Server-verified sessions; owner-only administration configured by Supabase user UUID.
+- Supabase PostgreSQL product, category, order and quote APIs.
+- Product/category photos managed in GitHub; no active R2 or video-upload dependency.
+- COD checkout uses server prices, row locks, aggregated quantity checks and a retry UUID.
+- Checkout and quote submission are OFF by default. Online payment endpoints are disabled.
 
-## Design update
+Read NETLIFY-SETUP.md before uploading this to GitHub or changing your domain.
 
-- Black-and-white theme with uppercase sans-serif headings, compact navigation and an image-led two-panel campaign.
-- Responsive collection tiles and product grid; restyled custom-print form, cart, checkout and footer.
-- Separate search visibility, price/name sorting, accessible navigation labels, reduced-motion styling and honest missing-image placeholders.
-- Uses THREE D HOUSE branding and existing collection images, not copied reference-site branding or photography.
-- Store styling lives in app/storefront.css and is scoped to avoid changing administration styles. Existing data, payment and storage API implementations are unchanged.
-- Production build passed. Targeted storefront checks passed (4 tests). Lint found zero errors and image-optimization warnings. Browser visual QA and live checkout were not run; the design has not been verified as a pixel-exact match. The full legacy test suite was not rerun.
+## Important limits
+This is NOT a launch-ready, fully tested live store. You still need to configure Supabase,
+apply the SQL, verify email delivery and owner access, add real products/photos, and
+perform the launch checklist. Existing live database rows and remote media were not
+included in your source ZIP and have NOT been migrated.
 
-## Included
+Razorpay needs a separate payment integration pass for this backend. Do not add live
+payment keys yet. Refunds, payment reconciliation and automatic courier integration
+are not included. Cancelled/deleted COD orders do not automatically restock; adjust
+inventory deliberately after confirming cancellation. Administration shows the newest
+200 orders/quotes; pagination and full-store analytics need follow-up as volume grows.
 
-- Storefront, cart, image galleries, admin screens, order/payment API code.
-- React/Next.js-compatible Vinext application, styles, reusable UI components.
-- Database schema and SQL migrations, Worker entrypoint, package lockfile.
-- Bundled logo and category images under public/.
+Sessions expire after at most one hour and require sign-in again (no silent refresh).
+Customers only see orders placed while signed into their own account. The printable
+document is an order summary, not a GST-compliant tax invoice.
 
-## Not included
+## Local commands
+Use Node.js 22.13+ and npm on Windows, macOS or Linux:
+```
+npm ci
+npm test
+npm run build:netlify
+npm run dev
+```
+Set local configuration in .env.local using .env.example; never commit real values.
+The package lock and dependency versions are unchanged. No new package is required.
 
-- Live database rows (products, orders, quotes, customers).
-- Product images and videos uploaded to remote object storage.
-- Passwords, runtime environment files, payment secrets, API keys, dependencies, build output, or Git history.
-- A working Supabase customer-account integration. Supabase/Resend dashboard setup has been underway separately; it is not wired into this source.
+Old Cloudflare files (worker/, db/, drizzle/, vite.config.ts and the original hosting
+metadata) remain as historical source only. Next.js excludes them from type checking;
+the active app routes no longer import them. Do NOT run the old Sites/Cloudflare build
+or migration commands to deploy this version. Never run the SQLite drizzle SQL in Supabase.
 
-## Developer handoff
-
-Start with app/storefront.tsx, app/admin/dashboard.tsx, app/api/, db/schema.ts, worker/index.ts and package.json. The original README contains starter-specific guidance, not proof that this store is ready for production.
-
-The project requires Node.js >=22.13.0. Its shell helpers target Linux; on Windows use WSL with Linux Node installed. npm ci installs locked dependencies; npm run dev runs the development server and npm run build invokes the existing build helper. The build was rerun successfully for this redesign. Run node --test tests/storefront-theme.test.mjs for the targeted checks. Remote database content and credentials are not recreated by installing packages.
-
-Existing runtime dependencies include Cloudflare D1 (DB), R2 (BUCKET), and Sites-managed authentication. The .openai/hosting.json file identifies the original Site; preserve it for that Site, but do not deploy a new independent copy as though it were the original project. A separate Cloudflare deployment needs explicit bindings, deployment configuration, and replacement authentication.
-
-## Before public deployment
-
-Replace the platform-forwarded authentication-header trust with verified sessions on an independently hosted server. Existing administrative guards check for a signed-in user, not a robust owner-only role; enforce owner-only access on every admin page and write/read API before accepting customer accounts. Do not trust user-supplied identity headers.
-
-Complete and test account registration, email verification, password recovery, profile ownership, and private order access. Review payment order binding/replay protection and atomic inventory updates. Configure secrets through the target host, and transfer live records and uploaded media separately with an appropriate backup and migration plan.
-
-This export is for development/handoff and is not a production-security certification.
+## Validation
+- Production Next.js build and TypeScript validation: passed.
+- Automated tests: 14 passed, 0 failed.
+- ESLint: 0 errors; 15 warnings about plain image elements. Images deliberately
+  use static files without an image transformation service.
+- Targeted tests cover image restrictions, CSRF origins, exact owner allowlisting,
+  remote session verification, private order filtering, payload validation and SQL guards.
+- SQL checks are static only: the PostgreSQL migration has NOT been executed here.
+- No authenticated Supabase, SMTP, Netlify adapter, browser, load or real checkout test
+  has been performed. Follow the launch checklist before enabling orders.

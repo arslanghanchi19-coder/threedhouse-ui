@@ -1,59 +1,15 @@
-import { asc, eq } from "drizzle-orm";
-import { getDb } from "../../../db";
-import { categories } from "../../../db/schema";
-import { getChatGPTUser } from "../../chatgpt-auth";
-
-const allowedCategories = new Set([
-  "Bathroom",
-  "Kitchen",
-  "Home Organization",
-  "Desk & Office",
-  "Planters & Décor",
-  "Personalized Gifts",
-]);
-
-export async function GET() {
-  try {
-    const rows = await getDb().select().from(categories).orderBy(asc(categories.name));
-    return Response.json({ categories: rows });
-  } catch {
-    return Response.json({ categories: [] });
-  }
-}
-
-export async function POST(req: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "Sign in required" }, { status: 401 });
-  try {
-    const body = await req.json();
-    const name = String(body.name || "");
-    const imageKey = body.imageKey ? String(body.imageKey) : null;
-    if (!allowedCategories.has(name)) {
-      return Response.json({ error: "Invalid category" }, { status: 400 });
-    }
-    if (imageKey && !imageKey.startsWith("categories/")) {
-      return Response.json({ error: "Invalid category image" }, { status: 400 });
-    }
-    await getDb()
-      .insert(categories)
-      .values({ name, imageKey })
-      .onConflictDoUpdate({ target: categories.name, set: { imageKey } });
-    return Response.json({ category: { name, imageKey } });
-  } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Unable to save category" },
-      { status: 500 },
-    );
-  }
-}
-
-export async function DELETE(req: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "Sign in required" }, { status: 401 });
-  const name = new URL(req.url).searchParams.get("name") || "";
-  if (!allowedCategories.has(name)) {
-    return Response.json({ error: "Invalid category" }, { status: 400 });
-  }
-  await getDb().delete(categories).where(eq(categories.name, name));
-  return Response.json({ deleted: true });
+import {z} from "zod";
+import {database,failure} from "../../../lib/server/supabase";
+import {checkOrigin,requireAdmin} from "../../../lib/server/auth";
+import {body,categoryNames} from "../../../lib/server/validation";
+import {imagePath} from "../../../lib/security.mjs";
+export const dynamic="force-dynamic";
+export async function GET(){try{return Response.json({categories:await database("tdh_categories?select=*&order=name.asc")});}catch(e){return failure(e);}}
+export async function POST(request:Request){
+ try{
+  checkOrigin(request);await requireAdmin();
+  const data=await body(request,z.object({name:z.enum(categoryNames),imageKey:z.string().refine(k=>k.startsWith("categories/")&&Boolean(imagePath(k))).nullable()}));
+  await database("tdh_categories?on_conflict=name",{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(data)});
+  return Response.json({category:data});
+ }catch(e){return failure(e);}
 }

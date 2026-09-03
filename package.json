@@ -7,11 +7,12 @@
   },
   "scripts": {
     "install:ci": "bash scripts/install-ci.sh",
-    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite",
-    "build": "bash scripts/build-verified.sh",
-    "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "test": "npm run build && node --test tests/*.test.mjs",
-    "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "build:netlify": "next build --webpack",
+    "start": "next start",
+    "test": "node --test tests/netlify-migration.test.mjs tests/storefront-theme.test.mjs",
+    "lint": "eslint app lib/server lib/security.mjs --ignore-pattern .next",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
   },
   "dependencies": {

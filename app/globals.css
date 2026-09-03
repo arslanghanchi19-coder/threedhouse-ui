@@ -1,4 +1,16 @@
 @import "tailwindcss";
+
+.account-page { max-width: 680px; margin: 48px auto; padding: 24px; font-size: 16px; }
+.account-page h1 { font-size: 32px; font-weight: 700; margin: 24px 0; }
+.account-page h2 { font-size: 22px; font-weight: 600; margin: 20px 0 12px; }
+.account-page a { text-decoration: underline; }
+.account-brand { font-weight: 700; letter-spacing: .15em; }
+.account-page form { display: grid; gap: 16px; padding: 24px 0; border-bottom: 1px solid #ddd; }
+.account-page label { display: grid; gap: 8px; }
+.account-page p { margin: 16px 0; }
+.account-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.account-error { color: #a31515; }
+.account-order { padding: 16px 0; border-bottom: 1px solid #ddd; }
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
 

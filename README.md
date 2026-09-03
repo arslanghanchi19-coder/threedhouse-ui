@@ -1,3 +1,14 @@
+# THREE D HOUSE — Netlify migration
+
+Start with [START-HERE.md](START-HERE.md) and [NETLIFY-SETUP.md](NETLIFY-SETUP.md).
+Those documents describe the active Next.js + Supabase version and required setup.
+Checkout is disabled until you complete the deployment and database checks.
+
+## Historical starter documentation (not current deployment instructions)
+
+The notes below describe the original Cloudflare/Sites starter. Do not use them
+to configure Netlify, authentication, or this migration's database.
+
 # vinext-starter
 
 A clean full-stack starter running on

@@ -1,8 +1,23 @@
-import {desc,eq} from "drizzle-orm";
-import {getDb} from "../../../db";
-import {quotes} from "../../../db/schema";
-import {getChatGPTUser} from "../../chatgpt-auth";
-
-export async function GET(){const user=await getChatGPTUser();if(!user)return Response.json({error:"Sign in required"},{status:401});const rows=await getDb().select().from(quotes).orderBy(desc(quotes.createdAt));return Response.json({quotes:rows})}
-export async function POST(req:Request){try{const data=await req.json();if(!data.customerName||!/^[0-9]{10}$/.test(String(data.phone))||!data.projectType||String(data.description||"").trim().length<10)return Response.json({error:"Please complete your name, 10-digit phone number and project details."},{status:400});const quote={id:`Q${Date.now().toString().slice(-9)}`,createdAt:new Date().toISOString(),customerName:String(data.customerName),phone:String(data.phone),email:String(data.email||""),projectType:String(data.projectType),description:String(data.description),quantity:Math.max(1,Number(data.quantity)||1),status:"new",ownerNote:""};await getDb().insert(quotes).values(quote);return Response.json({quote})}catch(e){return Response.json({error:e instanceof Error?e.message:"Unable to submit quote"},{status:500})}}
-export async function PATCH(req:Request){const user=await getChatGPTUser();if(!user)return Response.json({error:"Sign in required"},{status:401});const data=await req.json();if(!data.id||!["new","reviewing","quoted","approved","closed"].includes(data.status))return Response.json({error:"Invalid quote update"},{status:400});await getDb().update(quotes).set({status:String(data.status),ownerNote:String(data.ownerNote||"")}).where(eq(quotes.id,String(data.id)));return Response.json({updated:true})}
+import {z} from "zod";
+import {database,failure,AppError} from "../../../lib/server/supabase";
+import {checkOrigin,requireAdmin,requireUser} from "../../../lib/server/auth";
+import {body} from "../../../lib/server/validation";
+export const dynamic="force-dynamic";
+export async function GET(){try{await requireAdmin();return Response.json({quotes:await database("tdh_quotes?select=*&order=createdAt.desc&limit=200")},{headers:{"Cache-Control":"private, no-store"}});}catch(e){return failure(e);}}
+export async function POST(request:Request){
+ try{
+  checkOrigin(request);
+  if(process.env.CHECKOUT_ENABLED!=="true")throw new AppError("Custom quote requests are not open yet.",503);
+  const user=await requireUser(),data=await body(request,z.object({customerName:z.string().trim().min(2).max(100),phone:z.string().regex(/^[0-9]{10}$/),email:z.string().max(200).optional(),projectType:z.string().min(1).max(100),description:z.string().trim().min(10).max(5000),quantity:z.coerce.number().int().min(1).max(10000)}));
+  const quotes=await database<unknown[]>("tdh_quotes",{method:"POST",body:JSON.stringify({...data,email:user.email,userId:user.id})});
+  return Response.json({quote:quotes[0]});
+ }catch(e){return failure(e);}
+}
+export async function PATCH(request:Request){
+ try{
+  checkOrigin(request);await requireAdmin();
+  const data=await body(request,z.object({id:z.string().uuid(),status:z.enum(["new","reviewing","quoted","approved","closed"]),ownerNote:z.string().max(3000).default("")}));
+  const {id,...rest}=data;await database(`tdh_quotes?id=eq.${id}`,{method:"PATCH",body:JSON.stringify(rest)});
+  return Response.json({updated:true});
+ }catch(e){return failure(e);}
+}

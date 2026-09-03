@@ -1,6 +1,6 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   ChevronLeft,
@@ -106,7 +106,9 @@ const categoryPhotoUrl = (value: string) =>
     ? value
     : `/api/product-images?key=${encodeURIComponent(value)}`;
 export default function Storefront() {
-  const [products, setProducts] = useState(defaults),
+  const [products, setProducts] = useState<Product[]>([]),
+    [catalogLoading, setCatalogLoading] = useState(true),
+    [catalogError, setCatalogError] = useState(""),
     [categoryPhotos, setCategoryPhotos] = useState<Record<string, string>>(defaultCategoryPhotos),
     [makingVideos, setMakingVideos] = useState<MakingVideo[]>([]),
     [cart, setCart] = useState<CartItem[]>([]),
@@ -129,6 +131,7 @@ export default function Storefront() {
     [lightbox, setLightbox] = useState<{ product: Product; index: number } | null>(null),
     [zoom, setZoom] = useState(1),
     [touchStart, setTouchStart] = useState<number | null>(null);
+  const orderRequestId = useRef<string | null>(null);
   useEffect(() => {
     Promise.all([
       fetch("/api/products").then((r) => (r.ok ? r.json() : null)),
@@ -136,7 +139,8 @@ export default function Storefront() {
       fetch("/api/videos").then((r) => (r.ok ? r.json() : null)),
     ])
       .then(([productData, categoryData, videoData]) => {
-        if (productData?.products?.length) setProducts(productData.products);
+        if (Array.isArray(productData?.products)) setProducts(productData.products);
+        else setCatalogError("The collection is temporarily unavailable. Please try again later.");
         if (videoData?.videos?.length) setMakingVideos(videoData.videos);
         if (categoryData?.categories?.length) {
           setCategoryPhotos((current) => ({
@@ -149,7 +153,8 @@ export default function Storefront() {
           }));
         }
       })
-      .catch(() => {});
+      .catch(() => setCatalogError("Unable to load the collection. Please try again later."))
+      .finally(() => setCatalogLoading(false));
   }, []);
   useEffect(() => {
     if (!lightbox) return;
@@ -260,6 +265,7 @@ export default function Storefront() {
     setPlacing(true);
     setCheckoutError("");
     try {
+      orderRequestId.current ||= crypto.randomUUID();
       const f = new FormData(e.currentTarget),
         payload = Object.fromEntries(f.entries());
       const items = cart.map((p) => ({
@@ -340,12 +346,14 @@ export default function Storefront() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...payload,
+            requestId: orderRequestId.current,
             items,
           }),
         }),
         data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to place order");
       setOrderId(data.order.id);
+      orderRequestId.current = null;
       setCart([]);
     } catch (err) {
       setCheckoutError(
@@ -583,9 +591,9 @@ export default function Storefront() {
         ) : (
           <div className="no-products">
             <Package size={40} />
-            <h3>No products found</h3>
+            <h3>{catalogLoading ? "Loading the collection…" : catalogError ? "Collection unavailable" : products.length ? "No products found" : "Collection coming soon"}</h3>
             <p>
-              Try another category or clear your search to explore the collection.
+              {catalogError || (catalogLoading ? "Please wait." : products.length ? "Try another category or clear your search to explore the collection." : "New products will appear here when they are available.")}
             </p>
             <button onClick={() => { setQuery(""); setSelectedCategory("All Products"); }}>
               View all products
@@ -716,7 +724,7 @@ export default function Storefront() {
           <a href="#shop">All Products</a>
           <a href="#categories">Categories</a>
           <a href="#custom">Custom Printing</a>
-          <a href="/admin">Store administration</a>
+          <a href="/account">My account</a><a href="/admin">Store administration</a>
         </div>
         <div>
           <b>HELP</b>
@@ -789,7 +797,7 @@ export default function Storefront() {
                   <strong>Total</strong>
                   <strong>₹{total.toLocaleString("en-IN")}</strong>
                 </div>
-                <h3>Delivery details</h3>
+                <h3>Delivery details</h3><p>Please <a href="/account" target="_blank" rel="noopener noreferrer">sign in or create an account</a> before placing your order.</p>
                 <label>
                   Full name
                   <input name="customerName" required />
@@ -830,7 +838,7 @@ export default function Storefront() {
                     required
                   />
                 </label>
-                <h3>Payment method</h3>
+                <h3>Payment method</h3><p>Online payments are disabled during migration.</p>
                 <label className="payment-choice">
                   <input
                     type="radio"
@@ -849,6 +857,7 @@ export default function Storefront() {
                     type="radio"
                     name="paymentMethod"
                     value="razorpay"
+                    disabled
                     onChange={() => setPaymentMethod("razorpay")}
                   />
                   <span>

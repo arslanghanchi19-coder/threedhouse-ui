@@ -1,4 +1,25 @@
-import {asc,eq} from "drizzle-orm";import {getDb} from "../../../db";import {products} from "../../../db/schema";import {getChatGPTUser} from "../../chatgpt-auth";
-export async function GET(){try{const rows=await getDb().select().from(products).orderBy(asc(products.id));return Response.json({products:rows.map(p=>({...p,imageKeys:(()=>{try{return JSON.parse(p.images)}catch{return p.imageKey?[p.imageKey]:[]}})()}))})}catch{return Response.json({products:[]})}}
-export async function POST(req:Request){const user=await getChatGPTUser();if(!user)return Response.json({error:"Sign in required"},{status:401});try{const p=await req.json();if(!p.name||!Number.isFinite(Number(p.price)))return Response.json({error:"Invalid product"},{status:400});const imageKeys=Array.isArray(p.imageKeys)?p.imageKeys.map(String).filter(Boolean):p.imageKey?[String(p.imageKey)]:[];const values={name:String(p.name),category:String(p.category),price:Number(p.price),stock:Number(p.stock)||0,material:String(p.material||"PETG"),color:String(p.color||""),description:String(p.description||""),imageKey:imageKeys[0]||null,images:JSON.stringify(imageKeys)};await getDb().insert(products).values({id:Number(p.id),...values}).onConflictDoUpdate({target:products.id,set:values});return Response.json({product:{...p,...values,imageKeys}})}catch(e){return Response.json({error:e instanceof Error?e.message:"Unable to save"},{status:500})}}
-export async function DELETE(req:Request){const user=await getChatGPTUser();if(!user)return Response.json({error:"Sign in required"},{status:401});const id=Number(new URL(req.url).searchParams.get("id"));if(!Number.isFinite(id))return Response.json({error:"Product ID required"},{status:400});await getDb().delete(products).where(eq(products.id,id));return Response.json({deleted:true,id})}
+import { database, failure, AppError } from "../../../lib/server/supabase";
+import { checkOrigin, requireAdmin } from "../../../lib/server/auth";
+import { body, productSchema } from "../../../lib/server/validation";
+export const dynamic = "force-dynamic";
+export async function GET() {
+  try { return Response.json({products:await database("tdh_products?select=*&order=id.asc")}); }
+  catch(error) { return failure(error); }
+}
+export async function POST(request:Request) {
+  try {
+    checkOrigin(request); await requireAdmin();
+    const p=await body(request,productSchema), value={...p,imageKey:p.imageKeys[0]||null};
+    const rows=await database<unknown[]>("tdh_products?on_conflict=id",{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(value)});
+    return Response.json({product:rows[0]});
+  } catch(error) { return failure(error); }
+}
+export async function DELETE(request:Request) {
+  try {
+    checkOrigin(request); await requireAdmin();
+    const id=Number(new URL(request.url).searchParams.get("id"));
+    if(!Number.isSafeInteger(id)||id<1)throw new AppError("Invalid product ID.");
+    await database(`tdh_products?id=eq.${id}`,{method:"DELETE"});
+    return Response.json({deleted:true,id});
+  }catch(error){return failure(error);}
+}
