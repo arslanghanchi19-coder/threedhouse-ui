@@ -13,3 +13,6 @@
 [context.branch-deploy.environment]
   CHECKOUT_ENABLED = "false"
 
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
