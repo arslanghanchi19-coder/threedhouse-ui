@@ -227,6 +227,37 @@ export default function Storefront() {
   function chosenColor(product: Product) {
     return selectedColors[product.id] || colorsFor(product)[0] || "Standard";
   }
+  function whatsappOrderUrl(
+    items: { name: string; selectedColor: string; quantity: number; price: number }[],
+  ) {
+    const orderSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+      orderShipping = orderSubtotal >= 999 ? 0 : 99,
+      orderTotal = orderSubtotal + orderShipping,
+      lines = items.map(
+        (item) =>
+          `• ${item.name} (${item.selectedColor}) x${item.quantity} — ₹${(item.price * item.quantity).toLocaleString("en-IN")}`,
+      ),
+      message = [
+        "Hi THREE D HOUSE! I'd like to order:",
+        "",
+        ...lines,
+        "",
+        `Subtotal: ₹${orderSubtotal.toLocaleString("en-IN")}`,
+        `Shipping: ${orderShipping ? `₹${orderShipping}` : "FREE"}`,
+        `Total: ₹${orderTotal.toLocaleString("en-IN")}`,
+      ].join("\n");
+    return `https://wa.me/918169786845?text=${encodeURIComponent(message)}`;
+  }
+  function buyNow(product: Product) {
+    if (product.stock < 1) return;
+    window.open(
+      whatsappOrderUrl([
+        { name: product.name, selectedColor: chosenColor(product), quantity: 1, price: product.price },
+      ]),
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }
   function chooseCategory(category: string) {
     setSelectedCategory(category);
     requestAnimationFrame(() =>
@@ -579,9 +610,14 @@ export default function Storefront() {
                     <p>{p.description}</p>
                     <div>
                       <b>₹{p.price.toLocaleString("en-IN")}</b>
-                      <button type="button" onClick={() => addToCart(p)} disabled={p.stock < 1}>
-                        {p.stock < 1 ? "Sold out" : "Add"} {p.stock > 0 && <ShoppingBag />}
-                      </button>
+                      <div className="product-buttons">
+                        <button type="button" onClick={() => addToCart(p)} disabled={p.stock < 1}>
+                          {p.stock < 1 ? "Sold out" : "Add"} {p.stock > 0 && <ShoppingBag />}
+                        </button>
+                        <button type="button" className="btn-buy-now" onClick={() => buyNow(p)} disabled={p.stock < 1}>
+                          Buy Now
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </article>
@@ -933,9 +969,22 @@ export default function Storefront() {
                 </small>
                 <button
                   className="btn dark checkout"
-                  onClick={() => setCheckout(true)}
+                  onClick={() =>
+                    window.open(
+                      whatsappOrderUrl(
+                        cart.map((p) => ({
+                          name: p.name,
+                          selectedColor: p.selectedColor,
+                          quantity: p.quantity,
+                          price: p.price,
+                        })),
+                      ),
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
                 >
-                  Proceed to checkout
+                  Buy Now on WhatsApp
                 </button>
               </>
             )}
