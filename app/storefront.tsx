@@ -191,7 +191,7 @@ export default function Storefront() {
   );
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0),
     subtotal = cart.reduce((s, p) => s + p.price * p.quantity, 0),
-    shipping = subtotal >= 500 ? 0 : 99,
+    shipping = subtotal >= 999 ? 0 : 99,
     total = subtotal + shipping;
   const colorsFor = (product: Product) =>
     product.color
@@ -367,7 +367,7 @@ export default function Storefront() {
     <main className="site-shell" id="top">
       <a className="skip-link" href="#shop">Skip to products</a>
       <div className="announcement">
-        Free shipping above ₹500 <span /> Made in India <span /> Precision 3D
+        Free shipping above ₹999 <span /> Made in India <span /> Precision 3D
         printed
       </div>
       <header className="nav">
@@ -739,7 +739,7 @@ export default function Storefront() {
         </div>
         <p className="copyright">© 2026 THREE D HOUSE. All rights reserved.</p>
       </footer>
-      {policy && <div className="info-modal"><button className="overlay" onClick={() => setPolicy(null)} aria-label="Close"/><article><button className="modal-close" onClick={() => setPolicy(null)}><X /></button>{policy === "shipping" ? <><p className="eyebrow">DELIVERY INFORMATION</p><h2>Shipping across India</h2><h3>Processing</h3><p>Most products are printed to order. Please allow 2–5 business days for production and quality checks before dispatch.</p><h3>Delivery</h3><p>Standard delivery normally takes 3–7 business days after dispatch. Shipping is ₹99, and free for orders of ₹500 or more.</p><h3>Tracking</h3><p>Tracking details are shared once your parcel is handed to the courier.</p></> : policy === "returns" ? <><p className="eyebrow">OUR PROMISE</p><h2>Returns & replacements</h2><p>Contact us within 7 days of delivery if your item arrives damaged, defective, or different from what you ordered. Please keep the packaging and share clear photos.</p><p>Because products are made to order, change-of-mind returns and personalized/custom products cannot normally be returned. Approved refunds are sent to the original payment method.</p></> : <><p className="eyebrow">COMMON QUESTIONS</p><h2>Frequently asked</h2><h3>Are the products durable?</h3><p>Yes. We select PLA, PLA+ or PETG based on the intended use and test every product before dispatch.</p><h3>Can I request another colour or size?</h3><p>Choose listed colours on the product card. For a special size or colour, submit a custom quote request.</p><h3>Do you offer Cash on Delivery?</h3><p>Yes, Cash on Delivery and secure Razorpay online payments are available at checkout.</p></>}</article></div>}
+      {policy && <div className="info-modal"><button className="overlay" onClick={() => setPolicy(null)} aria-label="Close"/><article><button className="modal-close" onClick={() => setPolicy(null)}><X /></button>{policy === "shipping" ? <><p className="eyebrow">DELIVERY INFORMATION</p><h2>Shipping across India</h2><h3>Processing</h3><p>Most products are printed to order. Please allow 2–5 business days for production and quality checks before dispatch.</p><h3>Delivery</h3><p>Standard delivery normally takes 3–7 business days after dispatch. Shipping is ₹99, and free for orders of ₹999 or more.</p><h3>Tracking</h3><p>Tracking details are shared once your parcel is handed to the courier.</p></> : policy === "returns" ? <><p className="eyebrow">OUR PROMISE</p><h2>Returns & replacements</h2><p>Contact us within 7 days of delivery if your item arrives damaged, defective, or different from what you ordered. Please keep the packaging and share clear photos.</p><p>Because products are made to order, change-of-mind returns and personalized/custom products cannot normally be returned. Approved refunds are sent to the original payment method.</p></> : <><p className="eyebrow">COMMON QUESTIONS</p><h2>Frequently asked</h2><h3>Are the products durable?</h3><p>Yes. We select PLA, PLA+ or PETG based on the intended use and test every product before dispatch.</p><h3>Can I request another colour or size?</h3><p>Choose listed colours on the product card. For a special size or colour, submit a custom quote request.</p><h3>Do you offer Cash on Delivery?</h3><p>Yes, Cash on Delivery and secure Razorpay online payments are available at checkout.</p></>}</article></div>}
       {lightbox && (() => { const gallery = imagesFor(lightbox.product); return <div className="lightbox" role="dialog" aria-modal="true" aria-label={`${lightbox.product.name} image gallery`} onTouchStart={(e) => setTouchStart(e.touches[0].clientX)} onTouchEnd={(e) => { if (touchStart === null) return; const distance = e.changedTouches[0].clientX - touchStart; if (Math.abs(distance) > 45) moveLightbox(distance > 0 ? -1 : 1); setTouchStart(null); }}><button className="lightbox-backdrop" onClick={() => setLightbox(null)} aria-label="Close gallery"/><header><div><b>{lightbox.product.name}</b><span>Image {lightbox.index + 1} of {gallery.length}</span></div><div><button onClick={() => setZoom((v) => Math.max(1, v - .5))} disabled={zoom === 1} aria-label="Zoom out"><ZoomOut /></button><strong>{Math.round(zoom * 100)}%</strong><button onClick={() => setZoom((v) => Math.min(3, v + .5))} disabled={zoom === 3} aria-label="Zoom in"><ZoomIn /></button><button onClick={() => setLightbox(null)} aria-label="Close"><X /></button></div></header><div className="lightbox-stage"><button className="lightbox-arrow prev" onClick={() => moveLightbox(-1)} aria-label="Previous image"><ChevronLeft /></button><div className={zoom > 1 ? "zoomed image-canvas" : "image-canvas"}><img src={`/api/product-images?key=${encodeURIComponent(gallery[lightbox.index])}`} alt={`${lightbox.product.name} enlarged view ${lightbox.index + 1}`} style={{ transform: `scale(${zoom})` }} /></div><button className="lightbox-arrow next" onClick={() => moveLightbox(1)} aria-label="Next image"><ChevronRight /></button></div><div className="lightbox-thumbs">{gallery.map((key, index) => <button key={key} className={index === lightbox.index ? "active" : ""} onClick={() => { setLightbox({ ...lightbox, index }); setZoom(1); }}><img src={`/api/product-images?key=${encodeURIComponent(key)}`} alt={`View ${index + 1}`} /></button>)}</div><small className="swipe-note">Swipe or use arrows to browse · Use zoom controls to inspect details</small></div> })()}
       {open && (
         <div className="drawer">
@@ -928,7 +928,7 @@ export default function Storefront() {
                 </div>
                 <small className="shipping-note">
                   {shipping
-                    ? "₹99 shipping · Free above ₹500"
+                    ? "₹99 shipping · Free above ₹999"
                     : "Free shipping applied"}
                 </small>
                 <button

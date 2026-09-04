@@ -108,7 +108,7 @@ begin
       'price',v_product.price,'quantity',v_quantity,'color',v_color,'imageKey',v_product."imageKey"));
     v_subtotal := v_subtotal + v_product.price::bigint*v_quantity;
   end loop;
-  v_shipping := case when v_subtotal>=500 then 0 else 99 end;
+  v_shipping := case when v_subtotal>=999 then 0 else 99 end;
   update public.tdh_products p set stock=p.stock-q.quantity from (
     select (value->>'productId')::bigint as id, sum((value->>'quantity')::integer)::integer as quantity
     from jsonb_array_elements(p_items) group by (value->>'productId')::bigint
