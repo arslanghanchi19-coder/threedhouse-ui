@@ -288,15 +288,17 @@ export default function Storefront() {
     return selectedColors[product.id] || colorsFor(product)[0] || "Standard";
   }
   function whatsappOrderUrl(
-    items: { name: string; selectedColor: string; quantity: number; price: number }[],
+    items: { name: string; selectedColor: string; quantity: number; price: number; imageKey?: string | null }[],
   ) {
     const orderSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0),
       orderShipping = orderSubtotal >= 999 ? 0 : 99,
       orderTotal = orderSubtotal + orderShipping,
-      lines = items.map(
-        (item) =>
-          `• ${item.name} (${item.selectedColor}) x${item.quantity} — ₹${(item.price * item.quantity).toLocaleString("en-IN")}`,
-      ),
+      lines = items.flatMap((item) => {
+        const line = `• ${item.name} (${item.selectedColor}) x${item.quantity} — ₹${(item.price * item.quantity).toLocaleString("en-IN")}`;
+        return item.imageKey
+          ? [line, `   Photo: ${window.location.origin}/api/product-images?key=${encodeURIComponent(item.imageKey)}`]
+          : [line];
+      }),
       message = [
         "Hi THREE D HOUSE! I'd like to order:",
         "",
@@ -312,7 +314,7 @@ export default function Storefront() {
     if (product.stock < 1) return;
     window.open(
       whatsappOrderUrl([
-        { name: product.name, selectedColor: chosenColor(product), quantity: 1, price: product.price },
+        { name: product.name, selectedColor: chosenColor(product), quantity: 1, price: product.price, imageKey: imagesFor(product)[0] ?? null },
       ]),
       "_blank",
       "noopener,noreferrer",
@@ -1081,6 +1083,7 @@ export default function Storefront() {
                           selectedColor: p.selectedColor,
                           quantity: p.quantity,
                           price: p.price,
+                          imageKey: imagesFor(p)[0] ?? null,
                         })),
                       ),
                       "_blank",
