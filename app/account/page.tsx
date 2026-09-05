@@ -6,7 +6,16 @@ import {Input} from "../../components/ui/input";
 import {safeReturnTo} from "../../lib/security.mjs";
 
 type User={id:string;email:string;displayName:string;admin:boolean};
-type Order={id:string;createdAt:string;total:number;orderStatus:string;items:{name:string;quantity:number}[]};
+type Order={id:string;createdAt:string;total:number;orderStatus:string;items:{name:string;quantity:number}[];courier?:string;trackingNumber?:string;trackingUrl?:string};
+const trackingStages=["new","accepted","processing","shipped","completed"];
+function OrderTracking({order}:{order:Order}){
+ if(order.orderStatus==="cancelled")return <p className="tracking-cancelled">This order was cancelled.</p>;
+ const step=Math.max(0,trackingStages.indexOf(order.orderStatus));
+ return <div className="order-tracking">
+  <ol className="tracking-steps">{trackingStages.map((stage,index)=><li key={stage} className={index<step?"done":index===step?"current":""}>{stage}</li>)}</ol>
+  {order.trackingNumber&&<p className="tracking-info">{order.courier||"Courier"} · {order.trackingNumber}{order.trackingUrl&&<> · <a href={order.trackingUrl} target="_blank" rel="noopener noreferrer">Track shipment</a></>}</p>}
+ </div>;
+}
 export default function Account(){
  const [user,setUser]=useState<User|null>(null),[mode,setMode]=useState("login"),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[error,setError]=useState(""),[orders,setOrders]=useState<Order[]>([]);
  useEffect(()=>{
@@ -37,7 +46,7 @@ export default function Account(){
    {user.admin&&<p><a href="/admin">Open store administration →</a></p>}
    <form onSubmit={e=>submit("profile",e)}><h2>Your profile</h2><label>Name<Input name="name" defaultValue={user.displayName} maxLength={100} required autoComplete="name"/></label><Button disabled={busy}>Save profile</Button></form>
    <form onSubmit={e=>submit("password",e)}><h2>Change password</h2><label>New password<Input name="password" type="password" minLength={8} maxLength={128} autoComplete="new-password" required/></label><Button disabled={busy}>Update password</Button></form>
-   {!user.admin&&<section><h2>Your orders</h2>{orders.length?orders.map(order=><article className="account-order" key={order.id}><b>Order {order.id.slice(0,8).toUpperCase()}</b><p>{new Date(order.createdAt).toLocaleDateString("en-IN")} · {order.orderStatus} · ₹{order.total.toLocaleString("en-IN")}</p><ul>{order.items.map((item,i)=><li key={i}>{item.name} × {item.quantity}</li>)}</ul></article>):<p>No orders placed with this account yet.</p>}</section>}
+   {!user.admin&&<section><h2>Your orders</h2>{orders.length?orders.map(order=><article className="account-order" key={order.id}><b>Order {order.id.slice(0,8).toUpperCase()}</b><p>{new Date(order.createdAt).toLocaleDateString("en-IN")} · {order.orderStatus} · ₹{order.total.toLocaleString("en-IN")}</p><ul>{order.items.map((item,i)=><li key={i}>{item.name} × {item.quantity}</li>)}</ul><OrderTracking order={order}/></article>):<p>No orders placed with this account yet.</p>}</section>}
    <Button variant="outline" disabled={busy} onClick={()=>submit("logout")}>Sign out</Button>
   </>:<>
    <div className="account-tabs">{[["login","Sign in"],["signup","Create account"],["recover","Forgot password"]].map(([value,label])=><Button key={value} variant={mode===value?"default":"outline"} disabled={busy} onClick={()=>{setMode(value);setError("");setMessage("")}}>{label}</Button>)}</div>

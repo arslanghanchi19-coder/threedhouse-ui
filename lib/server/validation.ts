@@ -10,6 +10,10 @@ export const productSchema = z.object({
   material:z.string().max(50).default("PETG"), color:z.string().max(300).default(""),
   description:z.string().max(5000).default(""), imageKeys:z.array(image).max(10).default([]),
 });
+export const reviewSchema = z.object({
+  productId:z.number().int().positive().safe(), rating:z.number().int().min(1).max(5),
+  comment:z.string().trim().max(1000).default(""),
+});
 export const deliverySchema = z.object({
   customerName:z.string().trim().min(2).max(100), phone:z.string().regex(/^[0-9]{10}$/),
   email:z.union([z.string().email().max(200),z.literal("")]).optional().default(""),
