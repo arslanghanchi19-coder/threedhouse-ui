@@ -124,7 +124,7 @@ $$;
 
 commit;
 `;
-export async function POST() {
+async function run() {
   try {
     await requireAdmin();
     const db = getDatabase();
@@ -134,3 +134,5 @@ export async function POST() {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }
+export async function GET() { return run(); }
+export async function POST() { return run(); }
