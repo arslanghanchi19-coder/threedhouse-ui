@@ -1,14 +1,14 @@
-# THREE D HOUSE — Netlify + Supabase migration
-Updated September 2, 2026.
+# THREE D HOUSE — Netlify + Neon + Clerk
 
-This is a source migration of your uploaded GitHub ZIP. Nothing has been deployed,
-no DNS records changed, and no paid service activated.
+Updated September 6, 2026. This project no longer uses Supabase anywhere — the database
+is Neon Postgres (provisioned through Netlify's own Neon extension, no separate account
+to manage) and authentication is Clerk.
 
 ## What changed
 - Standard Next.js build for Netlify, with the existing storefront design preserved.
-- Supabase Auth email/password login, confirmation, reset and customer profile page.
-- Server-verified sessions; owner-only administration configured by Supabase user UUID.
-- Supabase PostgreSQL product, category, order and quote APIs.
+- Clerk email/password login, email verification, password reset and customer profile page.
+- Server-verified sessions (via Clerk's SDK); owner-only administration configured by Clerk user ID.
+- Neon PostgreSQL product, category, order and quote APIs.
 - Product/category photos managed in GitHub; no active R2 or video-upload dependency.
 - COD checkout uses server prices, row locks, aggregated quantity checks and a retry UUID.
 - Checkout and quote submission are OFF by default. Online payment endpoints are disabled.
@@ -16,10 +16,8 @@ no DNS records changed, and no paid service activated.
 Read NETLIFY-SETUP.md before uploading this to GitHub or changing your domain.
 
 ## Important limits
-This is NOT a launch-ready, fully tested live store. You still need to configure Supabase,
-apply the SQL, verify email delivery and owner access, add real products/photos, and
-perform the launch checklist. Existing live database rows and remote media were not
-included in your source ZIP and have NOT been migrated.
+This is NOT a launch-ready, fully tested live store. You still need to verify owner access
+on the live site, add real products/photos, and perform the launch checklist.
 
 Razorpay needs a separate payment integration pass for this backend. Do not add live
 payment keys yet. Refunds, payment reconciliation and automatic courier integration
@@ -42,10 +40,10 @@ npm run dev
 Set local configuration in .env.local using .env.example; never commit real values.
 The package lock and dependency versions are unchanged. No new package is required.
 
-Old Cloudflare files (worker/, db/, drizzle/, vite.config.ts and the original hosting
-metadata) remain as historical source only. Next.js excludes them from type checking;
-the active app routes no longer import them. Do NOT run the old Sites/Cloudflare build
-or migration commands to deploy this version. Never run the SQLite drizzle SQL in Supabase.
+Old Cloudflare files (worker/, drizzle/, vite.config.ts and the original hosting
+metadata) remain as historical source only and are unrelated to the live app — the
+active `db/schema.sql` is the real, current Neon schema. Next.js excludes the old
+files from type checking; the active app routes no longer import them.
 
 ## Validation
 - Production Next.js build and TypeScript validation: passed.

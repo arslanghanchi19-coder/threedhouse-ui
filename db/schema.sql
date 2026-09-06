@@ -1,5 +1,8 @@
--- PostgreSQL only. Apply ONCE in Supabase SQL Editor after reviewing/backing up.
--- Creates new prefixed tables; never drops or overwrites existing store data.
+-- Neon Postgres schema for THREE D HOUSE.
+-- Applied directly to the Neon database provisioned via Netlify's Neon
+-- extension (not the old Supabase project). Auth identity (userId) comes
+-- from Clerk, so user ids are plain text (e.g. "user_xxx"), not uuid, and
+-- there is no auth.users table to reference here.
 begin;
 
 create table public.tdh_products (
@@ -18,7 +21,7 @@ create table public.tdh_categories (name text primary key, "imageKey" text);
 create table public.tdh_orders (
   id uuid primary key default gen_random_uuid(),
   "requestId" uuid not null,
-  "userId" uuid not null references auth.users(id),
+  "userId" text not null,
   "createdAt" timestamptz not null default now(),
   "customerName" text not null,
   phone text not null, email text not null default '',
@@ -35,26 +38,28 @@ create table public.tdh_orders (
 create index tdh_orders_user_created on public.tdh_orders("userId", "createdAt" desc);
 create table public.tdh_quotes (
   id uuid primary key default gen_random_uuid(),
-  "userId" uuid not null references auth.users(id),
+  "userId" text not null,
   "createdAt" timestamptz not null default now(),
   "customerName" text not null, phone text not null, email text not null default '',
   "projectType" text not null, description text not null,
   quantity integer not null check (quantity > 0),
   status text not null default 'new', "ownerNote" text not null default ''
 );
-
--- The browser has no direct table access. Server routes verify user/owner before
--- service-role access. Customers can only read their own orders through the API.
-alter table public.tdh_products enable row level security;
-alter table public.tdh_categories enable row level security;
-alter table public.tdh_orders enable row level security;
-alter table public.tdh_quotes enable row level security;
-revoke all on public.tdh_products, public.tdh_categories, public.tdh_orders, public.tdh_quotes from anon, authenticated;
-grant select, insert, update, delete on public.tdh_products, public.tdh_categories, public.tdh_orders, public.tdh_quotes to service_role;
+create table public.tdh_reviews (
+  id uuid primary key default gen_random_uuid(),
+  "productId" bigint not null references public.tdh_products(id) on delete cascade,
+  "userId" text not null,
+  "customerName" text not null,
+  rating integer not null check (rating between 1 and 5),
+  comment text not null default '',
+  "createdAt" timestamptz not null default now(),
+  unique ("productId", "userId")
+);
+create index tdh_reviews_product on public.tdh_reviews("productId", "createdAt" desc);
 
 -- Price, stock checks, inventory decrement and order creation are one transaction.
--- Repeated submissions with the same user/request UUID return the same order.
-create function public.tdh_place_cod_order(p_user_id uuid, p_request_id uuid, p_delivery jsonb, p_items jsonb)
+-- Repeated submissions with the same user/request id return the same order.
+create function public.tdh_place_cod_order(p_user_id text, p_request_id uuid, p_delivery jsonb, p_items jsonb)
 returns jsonb language plpgsql security invoker set search_path = '' as $$
 declare
   v_existing public.tdh_orders%rowtype;
@@ -69,7 +74,7 @@ declare
   v_id uuid;
 begin
   if p_user_id is null or p_request_id is null then raise exception 'Checkout: Please sign in.'; end if;
-  perform pg_advisory_xact_lock(hashtextextended(p_user_id::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended(p_user_id, 0));
   select * into v_existing from public.tdh_orders where "userId"=p_user_id and "requestId"=p_request_id;
   if found then return jsonb_build_object('id',v_existing.id,'total',v_existing.total,'paymentMethod','cod'); end if;
   if (select count(*) from public.tdh_orders where "userId"=p_user_id and "createdAt">now()-interval '1 hour') >= 10 then
@@ -120,6 +125,5 @@ begin
   return jsonb_build_object('id',v_id,'total',v_subtotal+v_shipping,'paymentMethod','cod');
 end;
 $$;
-revoke all on function public.tdh_place_cod_order(uuid,uuid,jsonb,jsonb) from public, anon, authenticated;
-grant execute on function public.tdh_place_cod_order(uuid,uuid,jsonb,jsonb) to service_role;
+
 commit;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError } from "./supabase";
+import { AppError } from "./errors";
 import { imagePath } from "../security.mjs";
 
 export const categoryNames = ["Bathroom","Kitchen","Home Organization","Desk & Office","Planters & Décor","Personalized Gifts"] as const;

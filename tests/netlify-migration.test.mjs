@@ -8,10 +8,10 @@ import {imagePath,isAdminId,sameOrigin,safeReturnTo} from "../lib/security.mjs";
 
 const read = path => fs.readFileSync(new URL(`../${path}`,import.meta.url),"utf8");
 class AppError extends Error {constructor(message,status=400){super(message);this.status=status;}}
-function moduleFrom(path,mocks){
+function moduleFrom(path,mocks,env={}){
  const code=ts.transpileModule(read(path),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  const exports={};
- vm.runInNewContext(code,{exports,require:name=>{if(!(name in mocks))throw Error(`Unexpected import ${name}`);return mocks[name];},Response,Request,URL,AbortSignal,process:{env:{}},console});
+ vm.runInNewContext(code,{exports,require:name=>{if(!(name in mocks))throw Error(`Unexpected import ${name}`);return mocks[name];},Response,Request,URL,AbortSignal,Error,process:{env},console});
  return exports;
 }
 test("repository images reject traversal, URLs, scripts and nested paths",()=>{
@@ -44,7 +44,7 @@ test("media handlers redirect locally and refuse uploads without storage",async(
  assert.equal(route.POST().status,405);assert.equal(route.DELETE().status,405);
 });
 test("product and cart validation rejects manipulated quantities and external images",()=>{
- const {productSchema,deliverySchema}=moduleFrom("lib/server/validation.ts",{"zod":{z},"./supabase":{AppError},"../security.mjs":{imagePath}});
+ const {productSchema,deliverySchema}=moduleFrom("lib/server/validation.ts",{"zod":{z},"./errors":{AppError},"../security.mjs":{imagePath}});
  const product={id:1,name:"Soap dish",category:"Bathroom",price:349,stock:5,imageKeys:["products/soap.webp"]};
  assert.equal(productSchema.safeParse(product).success,true);
  for(const delta of [{price:-1},{price:1.1},{stock:-1},{imageKeys:["https://evil.test/a.jpg"]}])assert.equal(productSchema.safeParse({...product,...delta}).success,false);
@@ -55,34 +55,49 @@ test("product and cart validation rejects manipulated quantities and external im
 test("order history is filtered by verified user ID and hides owner notes",async()=>{
  let queried="";
  const route=moduleFrom("app/api/orders/route.ts",{
-  zod:{z},"../../../lib/server/supabase":{AppError,failure:()=>new Response(null,{status:500}),database:async path=>{queried=path;return[];}},
+  zod:{z},
+  "../../../lib/server/db":{sql:(strings,...values)=>{queried=strings.reduce((acc,s,i)=>acc+s+(i<values.length?JSON.stringify(values[i]):""),"");return[];}},
+  "../../../lib/server/errors":{AppError,failure:()=>new Response(null,{status:500})},
   "../../../lib/server/auth":{requireUser:async()=>({id:"verified-id",admin:false}),requireAdmin:async()=>{throw new AppError("denied",403)},checkOrigin:()=>{}},
   "../../../lib/server/validation":{body:()=>{},deliverySchema:{}},
  });
  assert.equal((await route.GET()).status,200);
- assert.match(queried,/userId=eq.verified-id/);assert.doesNotMatch(queried,/ownerNote|select=\*/);
+ assert.match(queried,/verified-id/);assert.doesNotMatch(queried,/ownerNote|select \*/);
  const disabled=await route.POST(new Request("https://store.test/api/orders",{method:"POST"}));
  assert.notEqual(disabled.status,200);
 });
-test("Supabase token is verified remotely; legacy identity headers are not read",async()=>{
- let verification=0;
+test("stock-lock failures nested in the DB driver's error cause map to a 409 with the checkout message",async()=>{
+ const dbError=new Error("Failed query: select public.tdh_place_cod_order($1,$2,$3::jsonb,$4::jsonb)");
+ dbError.cause=new Error("Checkout: Not enough stock. Please update your cart.");
+ const route=moduleFrom("app/api/orders/route.ts",{
+  zod:{z},
+  "../../../lib/server/db":{sql:async()=>{throw dbError;}},
+  "../../../lib/server/errors":{AppError,failure:(e)=>Response.json({error:e instanceof AppError?e.message:"Something went wrong. Please try again."},{status:e instanceof AppError?e.status:500})},
+  "../../../lib/server/auth":{requireUser:async()=>({id:"verified-id",admin:false,email:""}),requireAdmin:async()=>{throw new AppError("denied",403)},checkOrigin:()=>{}},
+  "../../../lib/server/validation":{body:async()=>({requestId:"a714fc76-a4ae-41b1-b14e-4f424a8d07fb",items:[{productId:1,quantity:1,color:"Stone"}]}),deliverySchema:{}},
+ },{CHECKOUT_ENABLED:"true"});
+ const response=await route.POST(new Request("https://store.test/api/orders",{method:"POST"}));
+ assert.equal(response.status,409);
+ assert.match((await response.json()).error,/Not enough stock/);
+});
+test("Clerk identity is verified via the SDK; admin status derives from ADMIN_USER_IDS",async()=>{
+ let authCalls=0;
  const auth=moduleFrom("lib/server/auth.ts",{
-  "server-only":{},"next/headers":{cookies:async()=>({get:()=>({value:"test-token"})})},
-  "./supabase":{AppError,authRequest:async(path,body,token,method)=>{verification++;assert.equal(path,"user");assert.equal(token,"test-token");assert.equal(method,"GET");return{id:"customer",email:"buyer@example.test",email_confirmed_at:"2026-01-01"};}},
+  "server-only":{},
+  "@clerk/nextjs/server":{auth:async()=>{authCalls++;return{userId:"user_customer"};},currentUser:async()=>({id:"user_customer",primaryEmailAddress:{emailAddress:"buyer@example.test"},fullName:"Buyer Example"})},
+  "./errors":{AppError},
   "../security.mjs":{isAdminId,sameOrigin},
  });
- const user=await auth.getUser();assert.equal(verification,1);assert.equal(user.admin,false);
+ const user=await auth.getUser();assert.equal(authCalls,1);assert.equal(user.admin,false);assert.equal(user.email,"buyer@example.test");
  await assert.rejects(()=>auth.requireAdmin(),/Owner access required/);
- assert.doesNotMatch(read("lib/server/auth.ts"),/oai-authenticated/);
 });
-test("database schema restricts browser roles and uses atomic, idempotent checkout",()=>{
- const sql=read("supabase/001_store.sql");
- for(const table of ["products","categories","orders","quotes"])assert.ok(sql.includes(`alter table public.tdh_${table} enable row level security`));
- assert.match(sql,/unique \("userId", "requestId"\)/);
- assert.match(sql,/order by id for update/);
- assert.match(sql,/sum\(\(value->>'quantity'\)::integer\)/);
- assert.match(sql,/revoke all on function.*from public, anon, authenticated/);
- assert.doesNotMatch(sql,/drop table|disable row level security/i);
+test("Neon schema keeps atomic, idempotent checkout and drops the Supabase-specific role model",()=>{
+ const schema=read("db/schema.sql");
+ assert.match(schema,/unique \("userId", "requestId"\)/);
+ assert.match(schema,/order by id for update/);
+ assert.match(schema,/sum\(\(value->>'quantity'\)::integer\)/);
+ assert.doesNotMatch(schema,/references auth\.users|enable row level security|\banon\b|\bauthenticated\b|service_role/);
+ assert.doesNotMatch(schema,/drop table/i);
 });
 test("Netlify config keeps previews read-only and app routes have no Cloudflare imports",()=>{
  assert.match(read("netlify.toml"),/build:netlify/);

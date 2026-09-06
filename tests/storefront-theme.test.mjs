@@ -17,7 +17,7 @@ test("editorial storefront uses bundled collection imagery, not reference-site a
 
 test("theme is scoped and includes mobile and reduced-motion layouts", () => {
   assert.match(css, /\.site-shell\s*\{/);
-  assert.match(css, /--store-paper: #fff/);
+  assert.match(css, /--store-paper: #f7f4ee/);
   assert.match(css, /max-width: 760px/);
   assert.match(css, /prefers-reduced-motion: reduce/);
   assert.match(css, /\.site-shell \.product-grid \{ grid-template-columns: repeat\(2/);
