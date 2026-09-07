@@ -19,6 +19,7 @@
     "@base-ui/react": "^1.7.0",
     "@clerk/nextjs": "^7.9.1",
     "@hookform/resolvers": "^5.7.1",
+    "@netlify/blobs": "^11.0.3",
     "@netlify/database": "^2.0.1",
     "@shadcn/react": "^0.3.0",
     "class-variance-authority": "0.7.1",

@@ -11,7 +11,7 @@ class AppError extends Error {constructor(message,status=400){super(message);thi
 function moduleFrom(path,mocks,env={}){
  const code=ts.transpileModule(read(path),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  const exports={};
- vm.runInNewContext(code,{exports,require:name=>{if(!(name in mocks))throw Error(`Unexpected import ${name}`);return mocks[name];},Response,Request,URL,AbortSignal,Error,process:{env},console});
+ vm.runInNewContext(code,{exports,require:name=>{if(!(name in mocks))throw Error(`Unexpected import ${name}`);return mocks[name];},Response,Request,URL,AbortSignal,Error,File,FormData,crypto,process:{env},console});
  return exports;
 }
 test("repository images reject traversal, URLs, scripts and nested paths",()=>{
@@ -36,12 +36,20 @@ test("login return destinations cannot leave the store",()=>{
   assert.equal(safeReturnTo(value),"/account");
  assert.equal(safeReturnTo("/admin"),"/admin");
 });
-test("media handlers redirect locally and refuse uploads without storage",async()=>{
- const route=moduleFrom("app/api/product-images/route.ts",{"../../../lib/security.mjs":{imagePath}});
- const response=route.GET(new Request("https://store.test/api/product-images?key=products/soap.webp"));
+test("media handlers redirect to repository assets when unset, and gate uploads behind admin",async()=>{
+ const route=moduleFrom("app/api/product-images/route.ts",{
+  "../../../lib/security.mjs":{imagePath},
+  "../../../lib/server/auth":{requireAdmin:async()=>({id:"owner",admin:true}),checkOrigin:()=>{}},
+  "../../../lib/server/errors":{AppError,failure:(e)=>Response.json({error:e instanceof AppError?e.message:"fail"},{status:e instanceof AppError?e.status:500})},
+  "../../../lib/server/media":{mediaStore:()=>({getWithMetadata:async()=>null,set:async()=>{},delete:async()=>{}})},
+ });
+ const response=await route.GET(new Request("https://store.test/api/product-images?key=products/soap.webp"));
  assert.equal(response.status,307);assert.equal(response.headers.get("location"),"/products/soap.webp");
- assert.equal(route.GET(new Request("https://store.test/api/product-images?key=products/../secret.jpg")).status,404);
- assert.equal(route.POST().status,405);assert.equal(route.DELETE().status,405);
+ assert.equal((await route.GET(new Request("https://store.test/api/product-images?key=products/../secret.jpg"))).status,404);
+ const noFile=await route.POST(new Request("https://store.test/api/product-images",{method:"POST",body:new FormData()}));
+ assert.equal(noFile.status,400);
+ const badKey=await route.DELETE(new Request("https://store.test/api/product-images?key=not-a-real-key"));
+ assert.equal(badKey.status,400);
 });
 test("product and cart validation rejects manipulated quantities and external images",()=>{
  const {productSchema,deliverySchema}=moduleFrom("lib/server/validation.ts",{"zod":{z},"./errors":{AppError},"../security.mjs":{imagePath}});
@@ -106,5 +114,7 @@ test("Netlify config keeps previews read-only and app routes have no Cloudflare 
   if(folder==="auth")continue;
   assert.doesNotMatch(read(`app/api/${folder}/route.ts`),/cloudflare:workers|env\.BUCKET|getDb/);
  }
- assert.doesNotMatch(read("app/admin/dashboard.tsx"),/type="file"|\/api\/video-files/);
+ const dashboard=read("app/admin/dashboard.tsx");
+ assert.match(dashboard,/type="file"/);
+ assert.doesNotMatch(dashboard,/\/api\/video-files/);
 });
